@@ -112,6 +112,9 @@ final class VoxTypeState {
 
     /// Called by the App after launch
     func startServices() {
+        // Prompt for Accessibility permission if not granted (only shows dialog once)
+        requestAccessibilityIfNeeded()
+
         // Register hotkey and socket callbacks
         hotkeyService.onToggle = { [weak self] in
             Task { @MainActor in
@@ -128,6 +131,40 @@ final class VoxTypeState {
 
         // Preload model
         Task { await warmup() }
+    }
+
+    /// Prompt the system Accessibility dialog if not yet trusted.
+    /// With hardened runtime disabled + ad-hoc signing, this only needs to happen once.
+    private func requestAccessibilityIfNeeded() {
+        // "AXTrustedCheckOptionPrompt" is the raw key behind kAXTrustedCheckOptionPrompt
+        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+        let trusted = AXIsProcessTrustedWithOptions(options)
+        if trusted {
+            print("[VoxType] Accessibility permission granted")
+        } else {
+            print("[VoxType] Accessibility permission requested — waiting for user to grant in System Settings")
+            pollAccessibilityPermission()
+        }
+    }
+
+    /// Poll every 2 seconds until the user grants Accessibility permission, then restart hotkey service
+    private var accessibilityPollTimer: Timer?
+
+    private func pollAccessibilityPermission() {
+        accessibilityPollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if AXIsProcessTrusted() {
+                    self.accessibilityPollTimer?.invalidate()
+                    self.accessibilityPollTimer = nil
+                    print("[VoxType] Accessibility permission granted — restarting hotkey service")
+                    self.hotkeyService.restart()
+                    if self.modelReady {
+                        self.statusText = "Ready — press \(self.hotkeyService.hotkeyDisplayName) or click the icon"
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Toggle

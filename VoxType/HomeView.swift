@@ -91,6 +91,7 @@ struct HomeView: View {
                     .fill(state.recording ? Color.red : Color.accentColor)
             )
             .foregroundStyle(.white)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!state.modelReady && !state.recording)

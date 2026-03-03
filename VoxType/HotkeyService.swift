@@ -81,10 +81,10 @@ final class HotkeyService: @unchecked Sendable {
         hidThread?.cancel()
     }
 
-    /// Restart listeners (call after changing targetKeyCode)
+    /// Restart listeners (call after changing targetKeyCode or after permission grant)
     func restart() {
         stop()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             self?.start()
         }
     }
