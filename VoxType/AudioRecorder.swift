@@ -1,5 +1,5 @@
 // AudioRecorder.swift
-// AVAudioEngine 录音 → 写入临时 WAV 文件 + 实时音量采样
+// AVAudioEngine recording -> writes to temporary WAV file + real-time level sampling
 
 import AVFoundation
 import Foundation
@@ -11,13 +11,13 @@ final class AudioRecorder: @unchecked Sendable {
     private var tempURL: URL?
     private var startTime: Date?
 
-    /// 最近一次录音时长（秒），stop 后可读
+    /// Duration of the last recording (seconds), readable after stop()
     private(set) var lastDuration: TimeInterval = 0
 
-    /// 当前音量（0.0~1.0），录音期间实时更新
+    /// Current audio level (0.0~1.0), updated in real-time during recording
     private(set) var currentLevel: Float = 0
 
-    /// 开始录音，音频写入临时 WAV 文件
+    /// Start recording, audio is written to a temporary WAV file
     func start() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("voxtype_\(UUID().uuidString).wav")
@@ -37,7 +37,7 @@ final class AudioRecorder: @unchecked Sendable {
         ) { [weak self] buffer, _ in
             try? self?.audioFile?.write(from: buffer)
 
-            // 计算 RMS 音量
+            // Calculate RMS level
             guard let channelData = buffer.floatChannelData?[0] else { return }
             let frameCount = Int(buffer.frameLength)
             var sum: Float = 0
@@ -46,7 +46,7 @@ final class AudioRecorder: @unchecked Sendable {
                 sum += sample * sample
             }
             let rms = sqrt(sum / Float(max(frameCount, 1)))
-            // 映射到 0~1，clamp
+            // Map to 0~1, clamp
             let level = min(1.0, max(0.0, rms * 5.0))
             self?.currentLevel = level
         }
@@ -59,9 +59,9 @@ final class AudioRecorder: @unchecked Sendable {
         currentLevel = 0
     }
 
-    /// 停止录音，返回 WAV 文件路径
+    /// Stop recording, returns the WAV file URL
     func stop() -> URL? {
-        // 先算时长，再清空 startTime
+        // Calculate duration before clearing startTime
         if let start = startTime {
             lastDuration = Date().timeIntervalSince(start)
         }

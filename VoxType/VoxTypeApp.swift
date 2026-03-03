@@ -1,5 +1,5 @@
 // VoxTypeApp.swift
-// macOS 菜单栏语音转录 App + 主窗口
+// macOS menu bar voice transcription app + main window
 
 import SwiftUI
 
@@ -9,8 +9,7 @@ struct VoxTypeApp: App {
     @State private var state = VoxTypeState()
 
     init() {
-        // State 的 startServices 需要在 MainActor 上调用
-        // 用 DispatchQueue.main.async 延迟到 run loop 启动后
+        // Delay startServices() until the run loop is active
         let s = _state
         DispatchQueue.main.async {
             s.wrappedValue.startServices()
@@ -18,7 +17,7 @@ struct VoxTypeApp: App {
     }
 
     var body: some Scene {
-        // 菜单栏图标
+        // Menu bar icon
         MenuBarExtra {
             VoxTypeMenu(state: state)
         } label: {
@@ -26,7 +25,7 @@ struct VoxTypeApp: App {
         }
         .menuBarExtraStyle(.menu)
 
-        // 主窗口（从菜单栏打开）
+        // Main window (opened from menu bar)
         Window("VoxType", id: "main") {
             MainWindowView(state: state)
         }
@@ -35,7 +34,7 @@ struct VoxTypeApp: App {
     }
 }
 
-// MARK: - 菜单内容
+// MARK: - Menu Content
 
 struct VoxTypeMenu: View {
 
@@ -44,14 +43,14 @@ struct VoxTypeMenu: View {
 
     var body: some View {
 
-        // 状态指示
+        // Status indicator
         Text(state.statusText)
             .font(.caption)
 
         Divider()
 
-        // 录音按钮
-        Button(state.recording ? "停止录音" : "开始录音") {
+        // Record button
+        Button(state.recording ? "Stop Recording" : "Start Recording") {
             Task { await state.toggle() }
         }
         .keyboardShortcut("r")
@@ -59,23 +58,23 @@ struct VoxTypeMenu: View {
 
         Divider()
 
-        // 打开主窗口
-        Button("打开 VoxType") {
+        // Open main window
+        Button("Open VoxType") {
             openWindow(id: "main")
             NSApplication.shared.activate(ignoringOtherApps: true)
         }
         .keyboardShortcut("o")
 
-        // 重新加载模型
-        Button("重新加载模型") {
+        // Reload model
+        Button("Reload Model") {
             Task { await state.reloadModel() }
         }
         .disabled(state.recording || state.transcribing)
 
         Divider()
 
-        // 退出
-        Button("退出 VoxType") {
+        // Quit
+        Button("Quit VoxType") {
             state.cleanup()
             NSApplication.shared.terminate(nil)
         }

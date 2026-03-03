@@ -1,6 +1,5 @@
 // HotkeyService.swift
-// 全局热键：小键盘 * 触发录音
-// 双重捕获：CGEventTap（原生键盘）+ NSEvent 全局监听（Synergy/KVM 映射键）
+// Global hotkey: configurable key + dual capture (CGEventTap + NSEvent)
 
 import Foundation
 import CoreGraphics
@@ -8,7 +7,7 @@ import AppKit
 
 final class HotkeyService: @unchecked Sendable {
 
-    /// 热键触发回调
+    /// Hotkey trigger callback
     var onToggle: (() -> Void)?
 
     fileprivate var eventTap: CFMachPort?
@@ -16,15 +15,16 @@ final class HotkeyService: @unchecked Sendable {
     private var thread: Thread?
     private var nsEventMonitor: Any?
 
-    // macOS keycode: 小键盘 * = 0x43 (67)
-    // 某些外接键盘/KVM 可能发送不同 keycode，同时匹配
-    private let targetKeyCodes: Set<CGKeyCode> = [
-        67,   // 小键盘 * (标准 Apple 键盘)
-        0x43, // 同 67，显式十六进制
-    ]
+    /// Current target keyCode (can be changed at runtime)
+    var targetKeyCode: UInt16 = 67  // default: numpad *
+
+    /// Human-readable name for the current hotkey
+    var hotkeyDisplayName: String {
+        Self.keyCodeToName(targetKeyCode)
+    }
 
     func start() {
-        // 层 1: CGEventTap — 捕获原生键盘事件
+        // Layer 1: CGEventTap — native hardware keyboard events
         thread = Thread { [weak self] in
             self?.setupEventTap()
             RunLoop.current.run()
@@ -32,33 +32,37 @@ final class HotkeyService: @unchecked Sendable {
         thread?.name = "VoxType.HotkeyService"
         thread?.start()
 
-        // 层 2: NSEvent 全局监听 — 捕获 Synergy/KVM/远程桌面 转发的事件
+        // Layer 2: NSEvent global monitor — Synergy/KVM/remote desktop
         setupNSEventMonitor()
     }
 
     func stop() {
-        // 清理 CGEventTap
         if let tap = eventTap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }
         thread?.cancel()
 
-        // 清理 NSEvent 监听
         if let monitor = nsEventMonitor {
             NSEvent.removeMonitor(monitor)
             nsEventMonitor = nil
         }
     }
 
-    // MARK: - 层 1: CGEventTap（原生硬件键盘）
+    /// Restart listeners (call after changing targetKeyCode)
+    func restart() {
+        stop()
+        // Small delay to let old runloop tear down
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.start()
+        }
+    }
+
+    // MARK: - Layer 1: CGEventTap
 
     private func setupEventTap() {
         let refcon = Unmanaged.passUnretained(self).toOpaque()
 
-        // 监听 keyDown + systemDefined（某些键盘将小键盘键作为 system event 发送）
-        let eventMask: CGEventMask =
-            (1 << CGEventType.keyDown.rawValue) |
-            (1 << CGEventType.otherMouseDown.rawValue)  // 保留扩展性
+        let eventMask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
 
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
@@ -68,9 +72,8 @@ final class HotkeyService: @unchecked Sendable {
             callback: hotkeyCallback,
             userInfo: refcon
         ) else {
-            print("[VoxType] ❌ 无法创建 CGEventTap，请检查辅助功能权限")
-            print("[VoxType] 系统设置 → 隐私与安全 → 辅助功能 → 勾选 VoxType")
-            // CGEventTap 失败时，NSEvent 层仍然可以工作
+            print("[VoxType] CGEventTap failed — Accessibility permission not granted")
+            print("[VoxType] System Settings → Privacy & Security → Accessibility → enable VoxType")
             return
         }
 
@@ -78,14 +81,12 @@ final class HotkeyService: @unchecked Sendable {
         runLoopSource = CFMachPortCreateRunLoopSource(nil, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        print("[VoxType] ✅ CGEventTap 热键已绑定：小键盘 *")
+        print("[VoxType] CGEventTap bound to keyCode \(targetKeyCode) (\(hotkeyDisplayName))")
     }
 
-    // MARK: - 层 2: NSEvent 全局监听（Synergy/KVM 兼容）
+    // MARK: - Layer 2: NSEvent
 
     private func setupNSEventMonitor() {
-        // addGlobalMonitorForEvents 不需要辅助功能权限
-        // 可以捕获 Synergy/Barrier/KVM 等软件转发的按键事件
         nsEventMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.keyDown]
         ) { [weak self] event in
@@ -93,45 +94,61 @@ final class HotkeyService: @unchecked Sendable {
 
             let keyCode = event.keyCode
 
-            // 调试日志：记录所有按键码，方便排查映射问题
-            if event.modifierFlags.contains(.numericPad) || self.targetKeyCodes.contains(CGKeyCode(keyCode)) {
-                print("[VoxType] NSEvent 捕获按键: keyCode=\(keyCode) chars='\(event.characters ?? "")' numpad=\(event.modifierFlags.contains(.numericPad))")
-            }
-
-            // 匹配条件：
-            // 1. keyCode 在目标集合中
-            // 2. 或者: 字符是 "*" 且来自小键盘（numericPad flag）
-            let isTarget = self.targetKeyCodes.contains(CGKeyCode(keyCode))
-                || (event.characters == "*" && event.modifierFlags.contains(.numericPad))
+            let isTarget = keyCode == self.targetKeyCode
+                || (event.characters == "*" && event.modifierFlags.contains(.numericPad) && self.targetKeyCode == 67)
 
             if isTarget {
-                print("[VoxType] ✅ NSEvent 成功匹配小键盘 * (keyCode=\(keyCode))")
                 self.triggerWithDebounce()
             }
         }
 
-        print("[VoxType] ✅ NSEvent 全局监听已启动（Synergy/KVM 兼容层）")
+        print("[VoxType] NSEvent monitor active (Synergy/KVM layer)")
     }
 
-    // MARK: - 去重（防止两层同时触发）
+    // MARK: - Debounce
 
-    /// 上次触发时间戳，用于去重
     fileprivate var lastTriggerTime: UInt64 = 0
     private let debounceNanos: UInt64 = 300_000_000 // 300ms
 
-    /// 带去重的触发，两层都调用此方法
     fileprivate func triggerWithDebounce() {
         let now = DispatchTime.now().uptimeNanoseconds
-        if now - lastTriggerTime < debounceNanos {
-            print("[VoxType] ⏭️ 去重：跳过重复触发 (间隔 \((now - lastTriggerTime) / 1_000_000)ms)")
-            return
-        }
+        if now - lastTriggerTime < debounceNanos { return }
         lastTriggerTime = now
         onToggle?()
     }
+
+    // MARK: - Key name mapping
+
+    static func keyCodeToName(_ keyCode: UInt16) -> String {
+        let names: [UInt16: String] = [
+            0: "A", 1: "S", 2: "D", 3: "F", 4: "H", 5: "G", 6: "Z", 7: "X",
+            8: "C", 9: "V", 11: "B", 12: "Q", 13: "W", 14: "E", 15: "R",
+            16: "Y", 17: "T", 18: "1", 19: "2", 20: "3", 21: "4", 22: "6",
+            23: "5", 24: "=", 25: "9", 26: "7", 27: "-", 28: "8", 29: "0",
+            30: "]", 31: "O", 32: "U", 33: "[", 34: "I", 35: "P",
+            36: "Return", 37: "L", 38: "J", 39: "'", 40: "K", 41: ";",
+            42: "\\", 43: ",", 44: "/", 45: "N", 46: "M", 47: ".",
+            48: "Tab", 49: "Space", 50: "`", 51: "Delete",
+            53: "Escape",
+            65: "Numpad .", 67: "Numpad *", 69: "Numpad +",
+            71: "Numpad Clear", 75: "Numpad /", 76: "Numpad Enter",
+            78: "Numpad -",
+            82: "Numpad 0", 83: "Numpad 1", 84: "Numpad 2", 85: "Numpad 3",
+            86: "Numpad 4", 87: "Numpad 5", 88: "Numpad 6", 89: "Numpad 7",
+            91: "Numpad 8", 92: "Numpad 9",
+            96: "F5", 97: "F6", 98: "F7", 99: "F3", 100: "F8",
+            101: "F9", 103: "F11", 105: "F13", 107: "F14",
+            109: "F10", 111: "F12", 113: "F15", 114: "Help",
+            115: "Home", 116: "Page Up", 117: "Forward Delete",
+            118: "F4", 119: "End", 120: "F2", 121: "Page Down", 122: "F1",
+            123: "Left Arrow", 124: "Right Arrow",
+            125: "Down Arrow", 126: "Up Arrow",
+        ]
+        return names[keyCode] ?? "Key \(keyCode)"
+    }
 }
 
-// MARK: - CGEventTap C 回调
+// MARK: - CGEventTap C callback
 
 private func hotkeyCallback(
     proxy: CGEventTapProxy,
@@ -139,13 +156,11 @@ private func hotkeyCallback(
     event: CGEvent,
     refcon: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
-    // 重新启用 tap（系统可能因超时禁用）
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         if let refcon = refcon {
             let service = Unmanaged<HotkeyService>.fromOpaque(refcon).takeUnretainedValue()
             if let tap = service.eventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
-                print("[VoxType] ⚠️ CGEventTap 被系统禁用，已重新启用")
             }
         }
         return Unmanaged.passRetained(event)
@@ -155,25 +170,14 @@ private func hotkeyCallback(
         return Unmanaged.passRetained(event)
     }
 
-    let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+    let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
 
-    // 调试日志
-    let flags = event.flags
-    let isNumpad = flags.contains(.maskNumericPad)
-    print("[VoxType] CGEventTap 捕获按键: keyCode=\(keyCode) numpad=\(isNumpad)")
-
-    // 匹配小键盘 *：keyCode == 67 或 (字符 * + numpad flag)
-    let isTarget = keyCode == 67
-        || (isNumpad && keyCode == 67)
-
-    if isTarget {
-        if let refcon = refcon {
-            let service = Unmanaged<HotkeyService>.fromOpaque(refcon).takeUnretainedValue()
-            print("[VoxType] ✅ CGEventTap 成功匹配小键盘 * (keyCode=\(keyCode))")
+    if let refcon = refcon {
+        let service = Unmanaged<HotkeyService>.fromOpaque(refcon).takeUnretainedValue()
+        if keyCode == service.targetKeyCode {
             service.triggerWithDebounce()
+            return nil // swallow the key
         }
-        // 拦截按键，不让 * 字符输出
-        return nil
     }
 
     return Unmanaged.passRetained(event)

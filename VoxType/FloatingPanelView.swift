@@ -1,5 +1,5 @@
 // FloatingPanelView.swift
-// Wispr Flow 风格浮动录音面板
+// Wispr Flow-style floating recording panel
 
 import SwiftUI
 
@@ -9,14 +9,14 @@ struct FloatingPanelView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // 左侧状态指示
+            // Left: status indicator
             statusIndicator
 
-            // 中间内容
+            // Center: content
             centerContent
                 .frame(maxWidth: .infinity)
 
-            // 右侧计时器
+            // Right: timer
             trailingContent
         }
         .padding(.horizontal, 20)
@@ -29,7 +29,7 @@ struct FloatingPanelView: View {
         .environment(\.colorScheme, .dark)
     }
 
-    // MARK: - 左侧
+    // MARK: - Left
 
     @ViewBuilder
     private var statusIndicator: some View {
@@ -46,14 +46,14 @@ struct FloatingPanelView: View {
         }
     }
 
-    // MARK: - 中间
+    // MARK: - Center
 
     @ViewBuilder
     private var centerContent: some View {
         if state.recording {
             WaveformView(levels: state.audioLevels)
         } else if state.transcribing {
-            Text("转录中…")
+            Text("Transcribing...")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.white.opacity(0.8))
         } else if let preview = state.resultPreview {
@@ -64,7 +64,7 @@ struct FloatingPanelView: View {
         }
     }
 
-    // MARK: - 右侧
+    // MARK: - Right
 
     @ViewBuilder
     private var trailingContent: some View {
@@ -77,7 +77,7 @@ struct FloatingPanelView: View {
     }
 }
 
-// MARK: - 波形可视化
+// MARK: - Waveform Visualization
 
 struct WaveformView: View {
 
@@ -99,7 +99,7 @@ struct WaveformView: View {
     }
 }
 
-// MARK: - 脉冲红点
+// MARK: - Pulsing Dot
 
 struct PulsingDot: View {
 

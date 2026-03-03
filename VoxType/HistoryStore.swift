@@ -1,5 +1,5 @@
 // HistoryStore.swift
-// 转录历史持久化（JSON 文件存储）
+// Transcription history persistence (JSON file storage)
 
 import Foundation
 import Observation
@@ -8,18 +8,18 @@ import Observation
 @Observable
 final class HistoryStore {
 
-    // MARK: - 数据
+    // MARK: - Data
 
     private(set) var records: [TranscriptionRecord] = []
 
-    // MARK: - 统计
+    // MARK: - Stats
 
-    /// 总字数
+    /// Total word count
     var totalWordCount: Int {
         records.reduce(0) { $0 + $1.wordCount }
     }
 
-    /// 今日字数
+    /// Today's word count
     var todayWordCount: Int {
         let calendar = Calendar.current
         return records
@@ -27,7 +27,7 @@ final class HistoryStore {
             .reduce(0) { $0 + $1.wordCount }
     }
 
-    /// 平均每分钟字数（WPM）
+    /// Average words per minute (WPM)
     var averageWPM: Int {
         let totalAudio = records.reduce(0.0) { $0 + $1.audioDuration }
         guard totalAudio > 10 else { return 0 }
@@ -35,7 +35,7 @@ final class HistoryStore {
         return Int(Double(totalWords) / (totalAudio / 60.0))
     }
 
-    /// 周连续使用天数
+    /// Consecutive days streak
     var weekStreak: Int {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -57,10 +57,10 @@ final class HistoryStore {
         return streak
     }
 
-    /// 按日期分组（最新在前）
+    /// Grouped by date (newest first)
     var groupedByDate: [(String, [TranscriptionRecord])] {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.locale = Locale(identifier: "en_US")
 
         let calendar = Calendar.current
         var groups: [(String, [TranscriptionRecord])] = []
@@ -72,11 +72,11 @@ final class HistoryStore {
         for record in sorted {
             let key: String
             if calendar.isDateInToday(record.date) {
-                key = "今天"
+                key = "Today"
             } else if calendar.isDateInYesterday(record.date) {
-                key = "昨天"
+                key = "Yesterday"
             } else {
-                formatter.dateFormat = "M月d日 EEEE"
+                formatter.dateFormat = "MMM d, EEEE"
                 key = formatter.string(from: record.date)
             }
 
@@ -97,7 +97,7 @@ final class HistoryStore {
         return groups
     }
 
-    // MARK: - 持久化路径
+    // MARK: - Persistence Path
 
     private let fileURL: URL = {
         let appSupport = FileManager.default.urls(
@@ -109,7 +109,7 @@ final class HistoryStore {
         return dir.appendingPathComponent("history.json")
     }()
 
-    // MARK: - 初始化
+    // MARK: - Init
 
     init() {
         load()
@@ -142,7 +142,7 @@ final class HistoryStore {
             let data = try Data(contentsOf: fileURL)
             records = try JSONDecoder().decode([TranscriptionRecord].self, from: data)
         } catch {
-            print("[VoxType] 历史加载失败: \(error.localizedDescription)")
+            print("[VoxType] Failed to load history: \(error.localizedDescription)")
         }
     }
 
@@ -151,7 +151,7 @@ final class HistoryStore {
             let data = try JSONEncoder().encode(records)
             try data.write(to: fileURL, options: .atomic)
         } catch {
-            print("[VoxType] 历史保存失败: \(error.localizedDescription)")
+            print("[VoxType] Failed to save history: \(error.localizedDescription)")
         }
     }
 }

@@ -1,12 +1,12 @@
 // SocketService.swift
-// Unix domain socket 服务，接收 toggle/status 指令
-// 兼容 vox CLI 和 Hammerspoon
+// Unix domain socket server for toggle/status commands
+// Compatible with vox CLI and Hammerspoon
 
 import Foundation
 
 final class SocketService: @unchecked Sendable {
 
-    /// 收到命令时的回调，返回响应字符串
+    /// Callback when a command is received, returns a response string
     var onCommand: ((String) async -> String)?
 
     private let sockPath = "/tmp/voxtype.sock"
@@ -25,35 +25,35 @@ final class SocketService: @unchecked Sendable {
     func stop() {
         running = false
 
-        // 关闭 server socket
+        // Close server socket
         if serverFD >= 0 {
             Darwin.close(serverFD)
             serverFD = -1
         }
 
-        // 清理 socket 文件
+        // Clean up socket file
         unlink(sockPath)
 
         thread?.cancel()
     }
 
-    // MARK: - 内部
+    // MARK: - Internal
 
     private func serve() {
-        // 清理旧 socket
+        // Remove stale socket
         unlink(sockPath)
 
-        // 创建 Unix domain socket
+        // Create Unix domain socket
         serverFD = socket(AF_UNIX, SOCK_STREAM, 0)
         guard serverFD >= 0 else {
-            print("[VoxType] 无法创建 socket")
+            print("[VoxType] Failed to create socket")
             return
         }
 
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
 
-        // 用局部变量复制 sun_path 避免 overlapping access
+        // Copy sun_path using a local variable to avoid overlapping access
         var sunPath = addr.sun_path
         sockPath.withCString { cstr in
             withUnsafeMutableBytes(of: &sunPath) { rawBuf in
@@ -74,13 +74,13 @@ final class SocketService: @unchecked Sendable {
         chmod(sockPath, 0o600)
 
         running = true
-        print("[VoxType] Socket 服务就绪: \(sockPath)")
+        print("[VoxType] Socket service ready: \(sockPath)")
 
         while running {
             let clientFD = accept(serverFD, nil, nil)
             guard clientFD >= 0 else { continue }
 
-            // 读取命令
+            // Read command
             var buffer = [UInt8](repeating: 0, count: 64)
             let bytesRead = read(clientFD, &buffer, buffer.count)
 
@@ -88,7 +88,7 @@ final class SocketService: @unchecked Sendable {
                 let command = String(bytes: buffer[..<bytesRead], encoding: .utf8)?
                     .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
-                // 异步处理命令
+                // Process command asynchronously
                 let semaphore = DispatchSemaphore(value: 0)
                 nonisolated(unsafe) var response = "error"
 
@@ -101,7 +101,7 @@ final class SocketService: @unchecked Sendable {
 
                 semaphore.wait()
 
-                // 发送响应
+                // Send response
                 response.withCString { cstr in
                     _ = write(clientFD, cstr, strlen(cstr))
                 }

@@ -1,11 +1,11 @@
 // MicrophoneManager.swift
-// CoreAudio 音频输入设备管理：列出、选择、监听变化
+// CoreAudio input device management: list, select, monitor changes
 
 import Foundation
 import CoreAudio
 import Observation
 
-// MARK: - 数据模型
+// MARK: - Data Model
 
 struct AudioInputDevice: Identifiable, Hashable, Sendable {
     let id: AudioDeviceID   // UInt32
@@ -13,7 +13,7 @@ struct AudioInputDevice: Identifiable, Hashable, Sendable {
     let uid: String
 }
 
-// MARK: - 管理器
+// MARK: - Manager
 
 @MainActor
 @Observable
@@ -22,30 +22,30 @@ final class MicrophoneManager {
     var devices: [AudioInputDevice] = []
     var selectedDeviceID: AudioDeviceID = 0
 
-    /// 当前选中设备的名称
+    /// Name of the currently selected device
     var selectedDeviceName: String {
-        devices.first { $0.id == selectedDeviceID }?.name ?? "未知设备"
+        devices.first { $0.id == selectedDeviceID }?.name ?? "Unknown Device"
     }
 
     init() {
         refresh()
     }
 
-    /// 刷新设备列表 + 读取当前默认输入
+    /// Refresh device list and read the current default input
     func refresh() {
         devices = Self.listInputDevices()
         selectedDeviceID = Self.getDefaultInputDeviceID()
     }
 
-    /// 选择指定设备作为系统默认输入
+    /// Select a device as the system default input
     func selectDevice(_ deviceID: AudioDeviceID) {
         guard deviceID != selectedDeviceID else { return }
         Self.setDefaultInputDevice(deviceID)
         selectedDeviceID = deviceID
-        print("[VoxType] 🎤 切换麦克风: \(selectedDeviceName) (ID: \(deviceID))")
+        print("[VoxType] Switched microphone: \(selectedDeviceName) (ID: \(deviceID))")
     }
 
-    // MARK: - CoreAudio: 列出输入设备
+    // MARK: - CoreAudio: List Input Devices
 
     private static func listInputDevices() -> [AudioInputDevice] {
         var address = AudioObjectPropertyAddress(
@@ -77,7 +77,7 @@ final class MicrophoneManager {
         }
     }
 
-    // MARK: - CoreAudio: 检查是否有输入通道
+    // MARK: - CoreAudio: Check for Input Channels
 
     private static func hasInputChannels(_ deviceID: AudioDeviceID) -> Bool {
         var address = AudioObjectPropertyAddress(
@@ -108,7 +108,7 @@ final class MicrophoneManager {
         return channels > 0
     }
 
-    // MARK: - CoreAudio: 设备属性
+    // MARK: - CoreAudio: Device Properties
 
     private static func getDeviceName(_ deviceID: AudioDeviceID) -> String {
         var address = AudioObjectPropertyAddress(
@@ -138,7 +138,7 @@ final class MicrophoneManager {
         return cfUID as String
     }
 
-    // MARK: - CoreAudio: 默认输入设备
+    // MARK: - CoreAudio: Default Input Device
 
     static func getDefaultInputDeviceID() -> AudioDeviceID {
         var address = AudioObjectPropertyAddress(
@@ -169,7 +169,7 @@ final class MicrophoneManager {
             &id
         )
         if status != noErr {
-            print("[VoxType] ⚠️ 设置默认输入设备失败: \(status)")
+            print("[VoxType] Failed to set default input device: \(status)")
         }
     }
 }

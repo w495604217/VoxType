@@ -1,5 +1,5 @@
 // MicrophoneView.swift
-// 麦克风选择界面：设备列表 + 当前选中 + 音量预览
+// Microphone selection: device list + current selection
 
 import SwiftUI
 
@@ -9,9 +9,9 @@ struct MicrophoneView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            // 标题
+            // Title
             HStack {
-                Text("麦克风")
+                Text("Microphone")
                     .font(.system(size: 20, weight: .semibold))
 
                 Spacer()
@@ -23,21 +23,21 @@ struct MicrophoneView: View {
                         .font(.system(size: 12))
                 }
                 .buttonStyle(.borderless)
-                .help("刷新设备列表")
+                .help("Refresh device list")
             }
 
-            Text("选择用于语音输入的麦克风，切换后将同时更改系统默认输入设备。")
+            Text("Select the microphone for voice input. Switching will also change the system default input device.")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
 
-            // 设备列表
+            // Device list
             if state.micManager.devices.isEmpty {
                 emptyState
             } else {
                 deviceList
             }
 
-            // 当前设备信息
+            // Current device info
             currentDeviceInfo
 
             Spacer()
@@ -50,14 +50,14 @@ struct MicrophoneView: View {
         }
     }
 
-    // MARK: - 空状态
+    // MARK: - Empty State
 
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "mic.slash")
                 .font(.system(size: 40))
                 .foregroundStyle(.quaternary)
-            Text("未检测到音频输入设备")
+            Text("No audio input devices detected")
                 .font(.system(size: 15))
                 .foregroundStyle(.secondary)
         }
@@ -65,7 +65,7 @@ struct MicrophoneView: View {
         .padding(.vertical, 40)
     }
 
-    // MARK: - 设备列表
+    // MARK: - Device List
 
     private var deviceList: some View {
         VStack(spacing: 0) {
@@ -91,13 +91,13 @@ struct MicrophoneView: View {
             state.micManager.selectDevice(device.id)
         } label: {
             HStack(spacing: 12) {
-                // 麦克风图标
+                // Microphone icon
                 Image(systemName: micIcon(for: device))
                     .font(.system(size: 16))
                     .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                     .frame(width: 24)
 
-                // 设备名称
+                // Device name
                 VStack(alignment: .leading, spacing: 2) {
                     Text(device.name)
                         .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
@@ -111,7 +111,7 @@ struct MicrophoneView: View {
 
                 Spacer()
 
-                // 选中标记
+                // Selection mark
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 16))
@@ -125,11 +125,11 @@ struct MicrophoneView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - 当前设备信息
+    // MARK: - Current Device Info
 
     private var currentDeviceInfo: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("当前设备")
+            Text("Current Device")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.secondary)
 
@@ -146,20 +146,20 @@ struct MicrophoneView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(state.micManager.selectedDeviceName)
                         .font(.system(size: 14, weight: .medium))
-                    Text("VoxType 使用系统默认输入设备进行录音")
+                    Text("VoxType uses the system default input device for recording")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
-                // 录音状态
+                // Recording status
                 if state.recording {
                     HStack(spacing: 4) {
                         Circle()
                             .fill(.red)
                             .frame(width: 6, height: 6)
-                        Text("录音中")
+                        Text("Recording")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.red)
                     }
@@ -173,7 +173,7 @@ struct MicrophoneView: View {
         }
     }
 
-    // MARK: - 工具
+    // MARK: - Utilities
 
     private func micIcon(for device: AudioInputDevice) -> String {
         let name = device.name.lowercased()

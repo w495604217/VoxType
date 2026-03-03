@@ -1,22 +1,22 @@
 // TranscriptionService.swift
-// WhisperKit 封装：模型加载 + 音频转录
+// WhisperKit wrapper: model loading + audio transcription
 
 import Foundation
 import WhisperKit
 
 final class TranscriptionService: @unchecked Sendable {
 
-    // WhisperKit 实例
+    // WhisperKit instance
     private let pipe: Mutex<WhisperKit?> = Mutex(nil)
 
-    /// 预加载模型（首次运行会从 HuggingFace 下载 CoreML 模型）
+    /// Preload model (first run downloads the CoreML model from HuggingFace)
     func warmup(model: String) async throws {
         let config = WhisperKitConfig(model: model)
         let whisperKit = try await WhisperKit(config)
         pipe.withLock { $0 = whisperKit }
     }
 
-    /// 转录音频文件，返回识别文本
+    /// Transcribe an audio file, returns recognized text
     func transcribe(
         audioPath: String,
         language: String,
@@ -35,7 +35,7 @@ final class TranscriptionService: @unchecked Sendable {
             decodeOptions: options
         )
 
-        // 合并所有片段的文本
+        // Merge text from all segments
         let text = results
             .map { $0.text }
             .joined()
@@ -50,12 +50,12 @@ enum TranscriptionError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .modelNotLoaded: return "模型尚未加载"
+        case .modelNotLoaded: return "Model not loaded"
         }
     }
 }
 
-/// 简单互斥锁包装
+/// Simple mutex wrapper
 final class Mutex<Value>: @unchecked Sendable {
     private var value: Value
     private let lock = NSLock()

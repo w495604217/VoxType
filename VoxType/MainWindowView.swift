@@ -1,13 +1,13 @@
 // MainWindowView.swift
-// Wispr Flow 风格主窗口：手动侧边栏 + 内容区（避免 NavigationSplitView 焦点问题）
+// Main window: manual sidebar + content area (avoids NavigationSplitView focus issues)
 
 import SwiftUI
 
 enum SidebarTab: String, CaseIterable {
-    case home = "首页"
-    case history = "历史"
-    case microphone = "麦克风"
-    case settings = "设置"
+    case home = "Home"
+    case history = "History"
+    case microphone = "Microphone"
+    case settings = "Settings"
 
     var icon: String {
         switch self {
@@ -34,7 +34,7 @@ struct MainWindowView: View {
         }
         .frame(minWidth: 720, minHeight: 480)
         .onAppear {
-            // 确保窗口获得焦点
+            // Ensure the window receives focus
             DispatchQueue.main.async {
                 NSApplication.shared.activate(ignoringOtherApps: true)
                 NSApplication.shared.windows
@@ -44,7 +44,7 @@ struct MainWindowView: View {
         }
     }
 
-    // MARK: - 侧边栏
+    // MARK: - Sidebar
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -60,14 +60,14 @@ struct MainWindowView: View {
             .padding(.top, 20)
             .padding(.bottom, 24)
 
-            // 导航项
+            // Navigation items
             ForEach(SidebarTab.allCases, id: \.self) { tab in
                 sidebarButton(tab)
             }
 
             Spacer()
 
-            // 底部模型状态
+            // Bottom model status
             modelStatusBadge
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
@@ -88,7 +88,7 @@ struct MainWindowView: View {
                     .font(.system(size: 13, weight: .medium))
                 Spacer()
             }
-            .contentShape(Rectangle()) // 确保整个区域可点击
+            .contentShape(Rectangle()) // Ensure the entire area is clickable
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
@@ -101,7 +101,7 @@ struct MainWindowView: View {
         .padding(.horizontal, 8)
     }
 
-    // MARK: - 模型状态指示
+    // MARK: - Model Status Indicator
 
     private var modelStatusBadge: some View {
         HStack(spacing: 6) {
@@ -132,16 +132,16 @@ struct MainWindowView: View {
 
     private var modelStatusLabel: String {
         switch state.modelState {
-        case .idle: return "未加载"
+        case .idle: return "Not Loaded"
         case .downloading(let progress):
-            return "下载中 \(Int(progress * 100))%"
-        case .loading: return "加载中…"
-        case .ready: return "模型就绪"
-        case .error(let msg): return "错误: \(msg)"
+            return "Downloading \(Int(progress * 100))%"
+        case .loading: return "Loading..."
+        case .ready: return "Model Ready"
+        case .error(let msg): return "Error: \(msg)"
         }
     }
 
-    // MARK: - 详情内容
+    // MARK: - Detail Content
 
     @ViewBuilder
     private var detailContent: some View {

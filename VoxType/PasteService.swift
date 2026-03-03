@@ -1,32 +1,32 @@
 // PasteService.swift
-// 将文本粘贴到当前焦点窗口
+// Paste text into the currently focused window
 
 import AppKit
 import Carbon.HIToolbox
 
 enum PasteService {
 
-    /// 将文本粘贴到当前活跃的输入框
-    /// 流程：保存剪贴板 → 写入文本 → Cmd+V → 恢复剪贴板
+    /// Paste text into the active input field
+    /// Flow: save clipboard -> write text -> Cmd+V -> restore clipboard
     static func paste(_ text: String) {
         let pasteboard = NSPasteboard.general
         let oldContents = pasteboard.string(forType: .string) ?? ""
 
-        // 写入文本到剪贴板
+        // Write text to clipboard
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
 
-        // 模拟 Cmd+V
+        // Simulate Cmd+V
         simulateCmdV()
 
-        // 延迟恢复旧剪贴板内容
+        // Restore old clipboard contents after a delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             pasteboard.clearContents()
             pasteboard.setString(oldContents, forType: .string)
         }
     }
 
-    // MARK: - 模拟按键
+    // MARK: - Key Simulation
 
     private static func simulateCmdV() {
         let source = CGEventSource(stateID: .hidSystemState)

@@ -1,5 +1,5 @@
 // FloatingPanelWindow.swift
-// NSPanel 窗口管理：创建悬浮在所有窗口之上的透明面板
+// NSPanel management: creates a floating transparent panel above all windows
 
 import AppKit
 import SwiftUI
@@ -9,7 +9,7 @@ final class FloatingPanelWindow {
 
     private var panel: NSPanel?
 
-    /// 显示浮动面板
+    /// Show the floating panel
     func show(state: VoxTypeState) {
         guard panel == nil else { return }
 
@@ -33,7 +33,7 @@ final class FloatingPanelWindow {
         p.isMovableByWindowBackground = true
         p.hidesOnDeactivate = false
 
-        // 定位：屏幕底部居中，上浮 80pt
+        // Position: centered at bottom of screen, 80pt above
         if let screen = NSScreen.main {
             let screenFrame = screen.visibleFrame
             let x = screenFrame.midX - 150
@@ -45,12 +45,12 @@ final class FloatingPanelWindow {
         panel = p
     }
 
-    /// 隐藏浮动面板
+    /// Hide the floating panel
     func hide() {
         panel?.close()
         panel = nil
     }
 
-    /// 面板是否可见
+    /// Whether the panel is visible
     var isVisible: Bool { panel != nil }
 }

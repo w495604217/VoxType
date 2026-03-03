@@ -1,12 +1,12 @@
 // VoxTypeState.swift
-// 中央状态管理：录音 → 转录 → 粘贴
+// Central state management: record -> transcribe -> paste
 
 import Foundation
 import Observation
 import AppKit
 import UserNotifications
 
-// MARK: - 模型状态枚举
+// MARK: - Model State
 
 enum ModelState: Equatable {
     case idle
@@ -31,39 +31,39 @@ enum ModelState: Equatable {
 @Observable
 final class VoxTypeState {
 
-    // MARK: - 状态
+    // MARK: - State
 
     var recording = false
     var transcribing = false
     var modelReady = false
-    var statusText = "加载模型中…"
+    var statusText = "Loading model..."
     var modelState: ModelState = .idle
 
-    // MARK: - 设置项
+    // MARK: - Settings
 
     var currentLanguage = "zh"
     var autoPaste = true
     var soundEnabled = true
     var floatingPanelEnabled = true
 
-    // MARK: - 浮动面板状态
+    // MARK: - Floating Panel State
 
-    /// 波形音量数据（0.0~1.0），面板用来绘制波形
+    /// Waveform audio levels (0.0~1.0), used by the floating panel
     var audioLevels: [CGFloat] = Array(repeating: 0, count: 30)
 
-    /// 录音计时字符串 "0:03"
+    /// Recording timer string "0:03"
     var recordingTimeString = "0:00"
 
-    /// 转录完成后的预览文本（短暂显示后清除）
+    /// Preview text after transcription (briefly displayed then cleared)
     var resultPreview: String?
 
-    /// 浮动面板窗口
+    /// Floating panel window
     let floatingPanel = FloatingPanelWindow()
 
-    /// 历史记录存储
+    /// History store
     let historyStore = HistoryStore()
 
-    /// 麦克风管理器
+    /// Microphone manager
     let micManager = MicrophoneManager()
 
     var menuBarIcon: String {
@@ -73,25 +73,25 @@ final class VoxTypeState {
         return "mic.badge.xmark"
     }
 
-    // MARK: - 服务
+    // MARK: - Services
 
     private let recorder = AudioRecorder()
     private let transcriber = TranscriptionService()
-    private let hotkeyService = HotkeyService()
+    let hotkeyService = HotkeyService()
     private let socketService = SocketService()
 
-    // MARK: - 计时器
+    // MARK: - Timers
 
     private var recordingTimer: Timer?
     private var recordingStart: Date?
     private var levelTimer: Timer?
     private var dismissTimer: Timer?
 
-    // MARK: - 配置
+    // MARK: - Config
 
     private let model = "openai_whisper-large-v3-v20240930_turbo"
     private let initialPrompt = """
-        以下是常见技术术语，转录时保持英文原文：\
+        Keep the following common technical terms in their original English form:\
         SwiftUI, React, Next.js, TypeScript, JavaScript, Python, Swift, \
         API, SDK, iOS, macOS, Xcode, Git, GitHub, Docker, Kubernetes, \
         PostgreSQL, Supabase, Vercel, Claude, GPT, Whisper, MLX, \
@@ -104,15 +104,15 @@ final class VoxTypeState {
     private let soundEnd = "/System/Library/Sounds/Pop.aiff"
     private let minDuration: TimeInterval = 0.5
 
-    // MARK: - 初始化
+    // MARK: - Init
 
     init() {
-        // init 里不做任何重活，等 startServices() 被调用
+        // No heavy work in init; wait for startServices() to be called
     }
 
-    /// 由 App 启动后调用，延迟启动
+    /// Called by the App after launch
     func startServices() {
-        // 注册热键和 socket 回调
+        // Register hotkey and socket callbacks
         hotkeyService.onToggle = { [weak self] in
             Task { @MainActor in
                 await self?.toggle()
@@ -122,11 +122,11 @@ final class VoxTypeState {
             return await self?.handleSocketCommand(cmd) ?? "error"
         }
 
-        // 启动后台服务
+        // Start background services
         hotkeyService.start()
         socketService.start()
 
-        // 预加载模型
+        // Preload model
         Task { await warmup() }
     }
 
@@ -134,7 +134,7 @@ final class VoxTypeState {
 
     func toggle() async {
         if !modelReady {
-            statusText = "模型尚未加载"
+            statusText = "Model not loaded"
             return
         }
         if transcribing { return }
@@ -146,23 +146,23 @@ final class VoxTypeState {
         }
     }
 
-    // MARK: - 录音
+    // MARK: - Recording
 
     private func startRecording() {
         do {
             try recorder.start()
             recording = true
-            statusText = "录音中…"
+            statusText = "Recording..."
             recordingTimeString = "0:00"
             resultPreview = nil
             if soundEnabled { playSound(soundStart) }
 
-            // 显示浮动面板
+            // Show floating panel
             if floatingPanelEnabled {
                 floatingPanel.show(state: self)
             }
 
-            // 启动计时器
+            // Start timer
             recordingStart = Date()
             recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
                 Task { @MainActor [weak self] in
@@ -170,14 +170,14 @@ final class VoxTypeState {
                 }
             }
 
-            // 启动音量采样
+            // Start audio level sampling
             levelTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
                 Task { @MainActor [weak self] in
                     self?.updateLevels()
                 }
             }
         } catch {
-            statusText = "麦克风错误: \(error.localizedDescription)"
+            statusText = "Microphone error: \(error.localizedDescription)"
         }
     }
 
@@ -185,7 +185,7 @@ final class VoxTypeState {
         recording = false
         if soundEnabled { playSound(soundEnd) }
 
-        // 停止计时器
+        // Stop timers
         recordingTimer?.invalidate()
         recordingTimer = nil
         levelTimer?.invalidate()
@@ -194,27 +194,27 @@ final class VoxTypeState {
         let audioDuration = recordingStart.map { Date().timeIntervalSince($0) } ?? 0
         recordingStart = nil
 
-        // 重置波形
+        // Reset waveform
         audioLevels = Array(repeating: 0, count: 30)
 
         guard let url = recorder.stop() else {
-            statusText = "录音为空"
+            statusText = "Recording is empty"
             floatingPanel.hide()
             return
         }
 
-        // 检查录音时长
+        // Check recording duration
         let duration = recorder.lastDuration
         if duration < minDuration {
-            statusText = "录音过短，已忽略"
+            statusText = "Recording too short, ignored"
             floatingPanel.hide()
             try? FileManager.default.removeItem(at: url)
             return
         }
 
-        // 开始转录（面板保持显示）
+        // Start transcription (panel stays visible)
         transcribing = true
-        statusText = "转录中…"
+        statusText = "Transcribing..."
 
         do {
             let t0 = ContinuousClock.now
@@ -229,23 +229,23 @@ final class VoxTypeState {
             try? FileManager.default.removeItem(at: url)
 
             guard !text.isEmpty else {
-                statusText = "未识别到内容"
+                statusText = "No content recognized"
                 transcribing = false
                 floatingPanel.hide()
                 return
             }
 
-            // 粘贴到当前焦点窗口
+            // Paste to the focused window
             if autoPaste {
                 PasteService.paste(text)
             }
 
             let preview = text.count > 30
-                ? "\(text.prefix(30))…"
+                ? "\(text.prefix(30))..."
                 : text
-            statusText = "✅ \(String(format: "%.0f", duration))s→\(seconds)s | \(preview)"
+            statusText = "\(String(format: "%.0f", duration))s -> \(seconds)s | \(preview)"
 
-            // 保存到历史
+            // Save to history
             let record = TranscriptionRecord(
                 text: text,
                 audioDuration: audioDuration,
@@ -254,7 +254,7 @@ final class VoxTypeState {
             )
             historyStore.add(record)
 
-            // 面板显示结果预览，2秒后自动消失
+            // Show result preview on panel, auto-dismiss after 2s
             resultPreview = preview
             dismissTimer?.invalidate()
             dismissTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
@@ -264,7 +264,7 @@ final class VoxTypeState {
                 }
             }
         } catch {
-            statusText = "转录失败: \(error.localizedDescription)"
+            statusText = "Transcription failed: \(error.localizedDescription)"
             try? FileManager.default.removeItem(at: url)
             floatingPanel.hide()
         }
@@ -272,7 +272,7 @@ final class VoxTypeState {
         transcribing = false
     }
 
-    // MARK: - 计时器更新
+    // MARK: - Timer Updates
 
     private func updateTimer() {
         guard let start = recordingStart else { return }
@@ -284,27 +284,27 @@ final class VoxTypeState {
 
     private func updateLevels() {
         let level = CGFloat(recorder.currentLevel)
-        // 左移一位，追加新值
+        // Shift left by one, append new value
         var newLevels = Array(audioLevels.dropFirst())
         newLevels.append(level)
         audioLevels = newLevels
     }
 
-    // MARK: - 模型
+    // MARK: - Model
 
     private func warmup() async {
         modelState = .loading
-        statusText = "加载模型中…"
+        statusText = "Loading model..."
         do {
             try await transcriber.warmup(model: model)
             modelReady = true
             modelState = .ready
-            statusText = "就绪 — 按 * 或点击图标"
-            sendNotification(title: "VoxType 就绪", body: "按小键盘 * 或点击菜单栏图标开始语音输入")
+            statusText = "Ready — press \(hotkeyService.hotkeyDisplayName) or click the icon"
+            sendNotification(title: "VoxType Ready", body: "Press \(hotkeyService.hotkeyDisplayName) or click the menu bar icon to start voice input")
         } catch {
             modelState = .error(error.localizedDescription)
-            statusText = "模型加载失败: \(error.localizedDescription)"
-            sendNotification(title: "VoxType 错误", body: "模型加载失败: \(error.localizedDescription)")
+            statusText = "Model loading failed: \(error.localizedDescription)"
+            sendNotification(title: "VoxType Error", body: "Model loading failed: \(error.localizedDescription)")
         }
     }
 
@@ -313,7 +313,7 @@ final class VoxTypeState {
         await warmup()
     }
 
-    // MARK: - Socket 命令
+    // MARK: - Socket Commands
 
     private func handleSocketCommand(_ cmd: String) async -> String {
         switch cmd {
@@ -332,7 +332,7 @@ final class VoxTypeState {
         }
     }
 
-    // MARK: - 清理
+    // MARK: - Cleanup
 
     func cleanup() {
         recordingTimer?.invalidate()
@@ -342,7 +342,7 @@ final class VoxTypeState {
         socketService.stop()
     }
 
-    // MARK: - 工具
+    // MARK: - Utilities
 
     private func playSound(_ path: String) {
         guard FileManager.default.fileExists(atPath: path) else { return }

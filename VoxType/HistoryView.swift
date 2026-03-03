@@ -1,5 +1,5 @@
 // HistoryView.swift
-// 转录历史列表：按日期分组，支持复制和删除
+// Transcription history list: grouped by date, supports copy and delete
 
 import SwiftUI
 
@@ -12,7 +12,6 @@ struct HistoryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // 标题栏
             header
 
             Divider()
@@ -27,21 +26,21 @@ struct HistoryView: View {
         .background(Color(.windowBackgroundColor))
     }
 
-    // MARK: - 标题
+    // MARK: - Header
 
     private var header: some View {
         HStack {
-            Text("历史记录")
+            Text("History")
                 .font(.system(size: 20, weight: .semibold))
 
             Spacer()
 
-            // 搜索框
+            // Search field
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
                     .font(.system(size: 12))
-                TextField("搜索…", text: $searchText)
+                TextField("Search...", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
             }
@@ -61,38 +60,38 @@ struct HistoryView: View {
                         .font(.system(size: 12))
                 }
                 .buttonStyle(.borderless)
-                .help("清空全部历史")
+                .help("Clear all history")
             }
         }
         .padding(.horizontal, 32)
         .padding(.vertical, 16)
     }
 
-    // MARK: - 空状态
+    // MARK: - Empty State
 
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "clock")
                 .font(.system(size: 40))
                 .foregroundStyle(.quaternary)
-            Text("暂无转录记录")
+            Text("No transcriptions yet")
                 .font(.system(size: 15))
                 .foregroundStyle(.secondary)
-            Text("按 * 键开始语音输入，记录会自动保存在这里")
+            Text("Press the hotkey to start voice input — records are saved here automatically")
                 .font(.system(size: 13))
                 .foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - 记录列表
+    // MARK: - Record List
 
     private var recordList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 let groups = filteredGroups
                 ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
-                    // 日期分组标题
+                    // Date group header
                     Text(group.0)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.secondary)
@@ -119,7 +118,7 @@ struct HistoryView: View {
             return store.groupedByDate
         }
         let query = searchText.lowercased()
-        // 过滤每组中匹配的记录
+        // Filter matching records within each group
         return store.groupedByDate.compactMap { group in
             let filtered = group.1.filter { $0.text.lowercased().contains(query) }
             return filtered.isEmpty ? nil : (group.0, filtered)
@@ -130,7 +129,7 @@ struct HistoryView: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(record.text, forType: .string)
         copiedID = record.id
-        // 2秒后恢复
+        // Reset after 2 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             if copiedID == record.id {
                 copiedID = nil
@@ -139,7 +138,7 @@ struct HistoryView: View {
     }
 }
 
-// MARK: - 单条记录行
+// MARK: - Record Row
 
 struct RecordRow: View {
 
@@ -152,13 +151,13 @@ struct RecordRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // 时间
+            // Time
             Text(timeString)
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(.tertiary)
                 .frame(width: 50, alignment: .trailing)
 
-            // 内容
+            // Content
             VStack(alignment: .leading, spacing: 4) {
                 Text(record.text)
                     .font(.system(size: 13))
@@ -166,7 +165,7 @@ struct RecordRow: View {
                     .textSelection(.enabled)
 
                 HStack(spacing: 8) {
-                    Label("\(record.wordCount)字", systemImage: "character.cursor.ibeam")
+                    Label("\(record.wordCount) words", systemImage: "character.cursor.ibeam")
                     Label(String(format: "%.0fs", record.audioDuration), systemImage: "waveform")
                 }
                 .font(.system(size: 11))
@@ -175,7 +174,7 @@ struct RecordRow: View {
 
             Spacer()
 
-            // 操作按钮（hover 时显示）
+            // Action buttons (shown on hover)
             if isHovered {
                 HStack(spacing: 4) {
                     Button {
@@ -186,7 +185,7 @@ struct RecordRow: View {
                     }
                     .buttonStyle(.borderless)
                     .foregroundStyle(isCopied ? .green : .secondary)
-                    .help("复制")
+                    .help("Copy")
 
                     Button(role: .destructive) {
                         onDelete()
@@ -195,7 +194,7 @@ struct RecordRow: View {
                             .font(.system(size: 11))
                     }
                     .buttonStyle(.borderless)
-                    .help("删除")
+                    .help("Delete")
                 }
             }
         }
