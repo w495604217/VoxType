@@ -151,33 +151,36 @@ final class VoxTypeState {
     private func startRecording() {
         do {
             try recorder.start()
-            recording = true
-            statusText = "Recording..."
-            recordingTimeString = "0:00"
-            resultPreview = nil
-            if soundEnabled { playSound(soundStart) }
-
-            // Show floating panel
-            if floatingPanelEnabled {
-                floatingPanel.show(state: self)
-            }
-
-            // Start timer
-            recordingStart = Date()
-            recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.updateTimer()
-                }
-            }
-
-            // Start audio level sampling
-            levelTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.updateLevels()
-                }
-            }
         } catch {
-            statusText = "Microphone error: \(error.localizedDescription)"
+            statusText = "Mic error: \(error.localizedDescription)"
+            sendNotification(title: "VoxType", body: error.localizedDescription)
+            return
+        }
+
+        recording = true
+        statusText = "Recording..."
+        recordingTimeString = "0:00"
+        resultPreview = nil
+        if soundEnabled { playSound(soundStart) }
+
+        // Show floating panel
+        if floatingPanelEnabled {
+            floatingPanel.show(state: self)
+        }
+
+        // Start timer
+        recordingStart = Date()
+        recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updateTimer()
+            }
+        }
+
+        // Start audio level sampling
+        levelTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updateLevels()
+            }
         }
     }
 
@@ -299,8 +302,13 @@ final class VoxTypeState {
             try await transcriber.warmup(model: model)
             modelReady = true
             modelState = .ready
-            statusText = "Ready — press \(hotkeyService.hotkeyDisplayName) or click the icon"
-            sendNotification(title: "VoxType Ready", body: "Press \(hotkeyService.hotkeyDisplayName) or click the menu bar icon to start voice input")
+            let hotkeyName = hotkeyService.hotkeyDisplayName
+            if hotkeyService.accessibilityGranted {
+                statusText = "Ready — press \(hotkeyName) or click the icon"
+            } else {
+                statusText = "Ready — click icon to record (grant Accessibility for hotkey)"
+            }
+            sendNotification(title: "VoxType Ready", body: "Press \(hotkeyName) or click the menu bar icon to start voice input")
         } catch {
             modelState = .error(error.localizedDescription)
             statusText = "Model loading failed: \(error.localizedDescription)"

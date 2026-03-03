@@ -18,21 +18,30 @@ final class HotkeyService: @unchecked Sendable {
     /// Current target keyCode (can be changed at runtime)
     var targetKeyCode: UInt16 = 67  // default: numpad *
 
+    /// Whether Accessibility permission is granted
+    var accessibilityGranted: Bool {
+        AXIsProcessTrusted()
+    }
+
     /// Human-readable name for the current hotkey
     var hotkeyDisplayName: String {
         Self.keyCodeToName(targetKeyCode)
     }
 
     func start() {
-        // Layer 1: CGEventTap — native hardware keyboard events
-        thread = Thread { [weak self] in
-            self?.setupEventTap()
-            RunLoop.current.run()
+        // Layer 1: CGEventTap — native hardware keyboard events (requires Accessibility)
+        if AXIsProcessTrusted() {
+            thread = Thread { [weak self] in
+                self?.setupEventTap()
+                RunLoop.current.run()
+            }
+            thread?.name = "VoxType.HotkeyService"
+            thread?.start()
+        } else {
+            print("[VoxType] Accessibility not granted — CGEventTap skipped, using NSEvent only")
         }
-        thread?.name = "VoxType.HotkeyService"
-        thread?.start()
 
-        // Layer 2: NSEvent global monitor — Synergy/KVM/remote desktop
+        // Layer 2: NSEvent global monitor — works without Accessibility for most keys
         setupNSEventMonitor()
     }
 

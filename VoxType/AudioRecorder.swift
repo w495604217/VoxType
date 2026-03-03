@@ -3,10 +3,25 @@
 
 import AVFoundation
 import Foundation
+import CoreAudio
+
+enum AudioRecorderError: LocalizedError {
+    case noInputDevice
+    case invalidFormat(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .noInputDevice:
+            return "No audio input device found. Please connect a microphone."
+        case .invalidFormat(let detail):
+            return "Audio format not supported: \(detail)"
+        }
+    }
+}
 
 final class AudioRecorder: @unchecked Sendable {
 
-    private let engine = AVAudioEngine()
+    private var engine: AVAudioEngine?
     private var audioFile: AVAudioFile?
     private var tempURL: URL?
     private var startTime: Date?
@@ -19,11 +34,26 @@ final class AudioRecorder: @unchecked Sendable {
 
     /// Start recording, audio is written to a temporary WAV file
     func start() throws {
+        // Pre-check: is there a valid default input device?
+        guard Self.hasDefaultInputDevice() else {
+            throw AudioRecorderError.noInputDevice
+        }
+
+        // Create a fresh engine each time to avoid stale device references
+        let eng = AVAudioEngine()
+        let inputNode = eng.inputNode
+        let recordingFormat = inputNode.outputFormat(forBus: 0)
+
+        // Validate format before installing tap
+        guard recordingFormat.sampleRate > 0,
+              recordingFormat.channelCount > 0 else {
+            throw AudioRecorderError.invalidFormat(
+                "\(recordingFormat.channelCount) ch, \(recordingFormat.sampleRate) Hz"
+            )
+        }
+
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("voxtype_\(UUID().uuidString).wav")
-
-        let inputNode = engine.inputNode
-        let recordingFormat = inputNode.outputFormat(forBus: 0)
 
         audioFile = try AVAudioFile(
             forWriting: url,
@@ -51,9 +81,10 @@ final class AudioRecorder: @unchecked Sendable {
             self?.currentLevel = level
         }
 
-        engine.prepare()
-        try engine.start()
+        eng.prepare()
+        try eng.start()
 
+        engine = eng
         tempURL = url
         startTime = Date()
         currentLevel = 0
@@ -66,8 +97,11 @@ final class AudioRecorder: @unchecked Sendable {
             lastDuration = Date().timeIntervalSince(start)
         }
 
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
+        if let eng = engine {
+            eng.inputNode.removeTap(onBus: 0)
+            eng.stop()
+        }
+        engine = nil
         audioFile = nil
         currentLevel = 0
 
@@ -75,5 +109,24 @@ final class AudioRecorder: @unchecked Sendable {
         tempURL = nil
         startTime = nil
         return finalURL
+    }
+
+    // MARK: - Device Check
+
+    /// Check if macOS has a valid default input device (CoreAudio level)
+    private static func hasDefaultInputDevice() -> Bool {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var deviceID: AudioDeviceID = 0
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address, 0, nil, &size, &deviceID
+        )
+        // deviceID 0 means no device found
+        return status == noErr && deviceID != 0
     }
 }
