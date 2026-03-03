@@ -1,0 +1,32 @@
+# Xcode
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+DerivedData/
+*.xcuserstate
+*.moved-aside
+*.hmap
+*.ipa
+
+# Build
+build/
+*.o
+*.dSYM
+*.dSYM.zip
+
+# SPM
+.build/
+Package.resolved
+.swiftpm/
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# IDE
+.idea/
+*.code-workspace
+
+# Python backup
+python-backup/
